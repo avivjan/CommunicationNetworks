@@ -18,7 +18,7 @@ def handle_auth(client_socket: socket.socket):
     print(resp)
 
     # Message received from server is auth message
-    if resp  == WELCOME_MESSAGE:
+    if resp.decode()  == WELCOME_MESSAGE:
         username = input("User: ")
         password = input("Password: ")
         client_socket.sendall(f"0 {username} Password: {password}{MESSAGE_SEP}".encode())
@@ -37,16 +37,16 @@ def execute_command(client_socket: socket.socket):
     # if the command is 'calculate' in the correct format then send the parsed arguments
     elif re.match(CALCULATE_COMMAND_REGEX, command):
         command_info_str = "".join(re.findall(CALCULATE_COMMAND_REGEX, command)[0])
-        client_socket.sendall(f"1 {command_info_str}{MESSAGE_SEP}")
+        client_socket.sendall(f"1 {command_info_str}{MESSAGE_SEP}".encode())
 
     # if the command is max and in the correct format than parse it to format server is expecting
     elif re.match(MAX_COMMAND_REGEX, command):
         command_parsed = command.replace("max: (", "").rstrip(")").replace(" ", ",")
-        client_socket.sendall(f"2 {command_parsed}{MESSAGE_SEP}")
+        client_socket.sendall(f"2 {command_parsed}{MESSAGE_SEP}".encode())
 
     elif re.match(FACTORS_COMMAND_REGEX, command):
         command_parsed = command.replace("factors: ", "")
-        client_socket.sendall(f"3 {command_parsed}{MESSAGE_SEP}")
+        client_socket.sendall(f"3 {command_parsed}{MESSAGE_SEP}".encode())
 
     else:
         print("Got invalid command from user\n Exiting...")
@@ -71,7 +71,7 @@ def main():
             handle_auth(sock)
             while True:
                 # If we get return value this means we got quit and therefore we should stop
-                if execute_command():
+                if execute_command(sock):
                     break
 
         except Exception as e:
