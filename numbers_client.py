@@ -21,7 +21,7 @@ def handle_auth(client_socket: socket.socket):
     if resp.decode()  == WELCOME_MESSAGE:
         username = input("User: ")
         password = input("Password: ")
-        client_socket.sendall(f"0 {username} Password: {password}{MESSAGE_SEP}".encode())
+        client_socket.sendall(f"0 {username},{password}{MESSAGE_SEP}".encode())
 
 
 def execute_command(client_socket: socket.socket):
