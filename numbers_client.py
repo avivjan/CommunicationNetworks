@@ -14,11 +14,11 @@ MESSAGE_SEP = "\\"
 
 def handle_auth(client_socket: socket.socket):
     """ This method is responsible for the authentication of the client against the server """
-    resp = client_socket.recv(1024)
+    resp = client_socket.recv(1024).decode()
     print(resp)
 
     # Message received from server is auth message
-    if resp.decode()  == WELCOME_MESSAGE:
+    if resp  == WELCOME_MESSAGE:
         username = input("User: ")
         password = input("Password: ")
         client_socket.sendall(f"0 {username},{password}{MESSAGE_SEP}".encode())
