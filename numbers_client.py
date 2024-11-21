@@ -52,6 +52,9 @@ def execute_command(client_socket: socket.socket):
         print("Got invalid command from user\n Exiting...")
         exit(1)
 
+    resp = client_socket.recv(1024).decode()
+    print(resp)
+
 
 def main():
     # Default values
