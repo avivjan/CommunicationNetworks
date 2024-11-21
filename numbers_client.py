@@ -36,7 +36,7 @@ def execute_command(client_socket: socket.socket):
 
     # if the command is 'calculate' in the correct format then send the parsed arguments
     elif re.match(CALCULATE_COMMAND_REGEX, command):
-        command_info_str = "".join(re.findall(CALCULATE_COMMAND_REGEX, command)[0])
+        command_info_str = " ".join(re.findall(CALCULATE_COMMAND_REGEX, command)[0])
         client_socket.sendall(f"1 {command_info_str}{MESSAGE_SEP}".encode())
 
     # if the command is max and in the correct format than parse it to format server is expecting
