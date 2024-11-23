@@ -9,10 +9,10 @@ CALCULATE_COMMAND_REGEX = "^calculate: (-?\d{1,9}) (\^|\/|\*|-|\+) (-?\d{1,9})$"
 MAX_COMMAND_REGEX = "^max: \((-?\d+)(?: (-?\d+))*\)$"
 FACTORS_COMMAND_REGEX = "^factors: (-?\d+)$"
 QUIT = "quit"
-
+FAILED_LOGIN_MESSAGE = "Failed to login."
 MESSAGE_SEP = "\\"
 
-def handle_auth(client_socket: socket.socket):
+def handle_auth(client_socket: socket.socket) -> bool:
     """ This method is responsible for the authentication of the client against the server """
     resp = client_socket.recv(1024).decode()
     print(resp)
@@ -22,6 +22,12 @@ def handle_auth(client_socket: socket.socket):
         username = input("User: ")
         password = input("Password: ")
         client_socket.sendall(f"0 {username},{password}{MESSAGE_SEP}".encode())
+
+    auth_message = client_socket.recv(1024).decode()
+    print(auth_message)
+    if auth_message == FAILED_LOGIN_MESSAGE:
+        return False
+    return True
 
 
 def execute_command(client_socket: socket.socket):
@@ -71,7 +77,10 @@ def main():
     with socket.socket() as sock:
         try:
             sock.connect((hostname, port))
-            handle_auth(sock)
+            auth_successful = False
+            while not auth_successful:
+                auth_successful = handle_auth(sock)
+
             while True:
                 # If we get return value this means we got quit and therefore we should stop
                 if execute_command(sock):
