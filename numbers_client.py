@@ -10,23 +10,59 @@ MAX_COMMAND_REGEX = "^max: \((-?\d+)(?: (-?\d+))*\)$"
 FACTORS_COMMAND_REGEX = "^factors: (-?\d+)$"
 QUIT = "quit"
 FAILED_LOGIN_MESSAGE = "Failed to login."
+FAILURE_PACKET = "N"
 MESSAGE_SEP = "\\"
+USER_START = "User: (.*)"
+PASSWORD_START = "Password: (.*)"
+SECOND_ATTEMPT = False
 
 def handle_auth(client_socket: socket.socket) -> bool:
     """ This method is responsible for the authentication of the client against the server """
-    resp = client_socket.recv(1024).decode()
-    print(resp)
+    global SECOND_ATTEMPT  # Declare global variable to modify it
+    resp = None
+
+    # If it is the first auth attempt than receive login message
+    
+    if not SECOND_ATTEMPT:
+        resp = client_socket.recv(1024).decode()
+        print(resp)
+
+    username_input = ""
+    password_input = ""
+
 
     # Message received from server is auth message
-    if resp  == WELCOME_MESSAGE:
-        username = input("User: ")
-        password = input("Password: ")
-        client_socket.sendall(f"0 {username},{password}{MESSAGE_SEP}".encode())
+    if resp  == WELCOME_MESSAGE or SECOND_ATTEMPT:
+        print("Please enter username in the format: 'User: username'")
+        username_input = input()
+        print("Please enter password in the format: 'Password: password'")
+        password_input = input()
+    # If it is the first login and did not receive welcome message
+    else:
+        client_socket.close()
+        exit(1)
+
+    if re.match(USER_START, username_input):
+        username = re.findall(USER_START, username_input)[0]
+    else:
+        raise Exception("Username was not provided in the correct format\n"
+                        f"Should be: User: (username), instead got: {username_input}")
+
+    if re.match(PASSWORD_START, password_input):
+        password = re.findall(PASSWORD_START, password_input)[0]
+    else:
+        raise Exception("Password was not provided in the correct format\n"
+                        f"Should be: Password: (password), instead got: {password_input}")
+
+    client_socket.sendall(f"0 {username},{password}{MESSAGE_SEP}".encode())
 
     auth_message = client_socket.recv(1024).decode()
-    print(auth_message)
-    if auth_message == FAILED_LOGIN_MESSAGE:
+    if auth_message == FAILURE_PACKET:
+        print(FAILED_LOGIN_MESSAGE)
+        SECOND_ATTEMPT = True
         return False
+    else:
+        print(auth_message)
     return True
 
 
@@ -56,7 +92,7 @@ def execute_command(client_socket: socket.socket):
 
     else:
         print("Got invalid command from user\n Exiting...")
-        exit(1)
+        return QUIT
 
     resp = client_socket.recv(1024).decode()
     print(resp)
@@ -65,7 +101,7 @@ def execute_command(client_socket: socket.socket):
 def main():
     # Default values
     default_hostname = "localhost"
-    default_port = 1337
+    default_port = 1338
 
     # Parse arguments
     hostname = sys.argv[1] if len(sys.argv) > 1 else default_hostname
@@ -78,6 +114,7 @@ def main():
         try:
             sock.connect((hostname, port))
             auth_successful = False
+
             while not auth_successful:
                 auth_successful = handle_auth(sock)
 
@@ -91,5 +128,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
