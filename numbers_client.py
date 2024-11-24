@@ -10,6 +10,7 @@ MAX_COMMAND_REGEX = "^max: \((-?\d+)(?: (-?\d+))*\)$"
 FACTORS_COMMAND_REGEX = "^factors: (-?\d+)$"
 QUIT = "quit"
 FAILED_LOGIN_MESSAGE = "Failed to login."
+FAILURE_PACKET = "N"
 MESSAGE_SEP = "\\"
 USER_START = "User: (.*)"
 PASSWORD_START = "Password: (.*)"
@@ -35,6 +36,10 @@ def handle_auth(client_socket: socket.socket) -> bool:
         username_input = input()
         print("Please enter password in the format: 'Password: password'")
         password_input = input()
+    # If it is the first login and did not receive welcome message
+    else:
+        client_socket.close()
+        exit(1)
 
     if re.match(USER_START, username_input):
         username = re.findall(USER_START, username_input)[0]
@@ -52,7 +57,8 @@ def handle_auth(client_socket: socket.socket) -> bool:
 
     auth_message = client_socket.recv(1024).decode()
     print(auth_message)
-    if auth_message == FAILED_LOGIN_MESSAGE:
+    if auth_message == FAILURE_PACKET:
+        print(FAILED_LOGIN_MESSAGE)
         SECOND_ATTEMPT = True
         return False
     return True
@@ -106,6 +112,7 @@ def main():
         try:
             sock.connect((hostname, port))
             auth_successful = False
+
             while not auth_successful:
                 auth_successful = handle_auth(sock)
 
