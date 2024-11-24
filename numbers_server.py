@@ -1,29 +1,30 @@
-import sys
-import socket
-import select
-from Connection import Connection
-import csv
-import math
+import sys        # For command-line arguments
+import socket     # For network socket operations
+import select     # For multiplexing I/O over sockets
+from Connection import Connection  # Custom Connection class (assumed to be defined elsewhere)
+import csv        # For CSV file handling (imported but not used)
+import math       # For mathematical operations
 
-
+# Define minimum and maximum 32-bit integer values
 MIN_INT32 = -2**31
 MAX_INT32 = 2**31 - 1
 
 def main():
+    # Declare global variables for user credentials and socket connections
     global users_credentials
     global readable_sockets, writable_sockets, connections
 
-    # Check the number of arguments
+    # Check the number of command-line arguments
     if len(sys.argv) < 2 or len(sys.argv) > 3:
         print("Usage: ./numbers_server.py users_file [port]")
         print("  users_file: Required argument - path to the user file.")
         print("  port: Optional argument - port number (default is 8080).")
         sys.exit(1)
 
-    # Required argument
+    # Load user credentials from the provided file
     users_credentials = fetch_users_credentials_from_file(sys.argv[1])
 
-    # Optional argument with default
+    # Parse the optional port argument or use default port 1338
     if len(sys.argv) == 3:
         try:
             port = int(sys.argv[2])
@@ -33,6 +34,7 @@ def main():
     else:
         port = 1338  # Default port if not specified
 
+    # Create and set up the server socket
     try:
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_socket.bind(('', port))
@@ -44,12 +46,15 @@ def main():
         print(f"Unexpected error: {e}")
         sys.exit(1)
 
+    # Initialize lists for readable and writable sockets and a dictionary for connections
     readable_sockets = [server_socket]
     writable_sockets = []
     connections = {}
 
+    # Server loop to handle incoming connections and data
     while True:
         try:
+            # Use select to get readable and writable sockets without blocking
             readables, writables, _ = select.select(readable_sockets, writable_sockets, [], 0)
         except select.error as e:
             print(f"Select error: {e}")
@@ -58,8 +63,10 @@ def main():
             print(f"Unexpected error during select: {e}")
             continue
 
+        # Handle readable sockets
         for readable_socket in readables:
             if readable_socket is server_socket:
+                # Accept new client connections
                 try:
                     client_socket, client_address = server_socket.accept()
                     readable_sockets.append(client_socket)
@@ -72,6 +79,7 @@ def main():
                     print(f"Unexpected error during accept: {e}")
                     continue
             else:
+                # Read data from existing client connections
                 try:
                     connection = connections[readable_socket.fileno()]
                     if not is_read_mode(connection):
@@ -89,6 +97,7 @@ def main():
                     disconnect_client(connection)
                     continue
 
+        # Handle writable sockets
         for writable_socket in writables:
             try:
                 if writable_socket.fileno() not in connections:
@@ -103,12 +112,15 @@ def main():
                 continue
 
 def is_read_mode(connection):
+    # Determine if the connection is ready to read data
     return connection.status == 'auth' or connection.status == 'on'
 
 def is_write_mode(connection):
-    return connection.status == 'greeting' or connection.status == 'right' or connection.status == 'wrong' or connection.status == 'result'  
+    # Determine if the connection is ready to write data
+    return connection.status in ('greeting', 'right', 'wrong', 'result')  
 
 def send_all(socket, data):
+    # Send all data to the client, handling partial sends
     total_sent = 0
     while total_sent < len(data):
         try:
@@ -120,6 +132,7 @@ def send_all(socket, data):
             raise RuntimeError(f"Socket send error: {e}")
 
 def fetch_users_credentials_from_file(file):
+    # Read user credentials from a file and store them in a dictionary
     users = {}
     try:
         with open(file, 'r') as f:
@@ -137,6 +150,7 @@ def fetch_users_credentials_from_file(file):
         sys.exit(1)
 
 def disconnect_client(connection):
+    # Cleanly disconnect a client and remove it from all tracking lists
     global readable_sockets, writable_sockets, connections
     socket = connection.socket
     if socket in readable_sockets:
@@ -148,6 +162,7 @@ def disconnect_client(connection):
     socket.close()
 
 def authenticate(connection, data):
+    # Authenticate a user based on provided credentials
     global users_credentials
     try:
         username, password = data.split(',')
@@ -161,6 +176,7 @@ def authenticate(connection, data):
     return False
 
 def handle_write(connection):
+    # Handle sending messages to the client based on connection status
     message = ""
     new_status = ""
     match connection.status:
@@ -189,18 +205,23 @@ def handle_write(connection):
     connection.status = new_status
 
 def handle_read(connection, data):
+    # Handle reading data from the client and processing commands
     connection.read_buffer += data
     if not connection.read_buffer.endswith('\\'):
+        # Disconnect if the message does not end with the protocol delimiter
         disconnect_client(connection)
         return
     else:
+        # Remove the trailing delimiter
         connection.read_buffer = connection.read_buffer[:-1]
         if connection.read_buffer.startswith('4'):
+            # Disconnect if the client sends a quit command
             disconnect_client(connection)
             return
         match connection.status:
             case 'auth':
                 if not connection.read_buffer.startswith('0'):
+                    # Expecting authentication command starting with '0'
                     disconnect_client(connection)
                     return
                 success = authenticate(connection, connection.read_buffer[2:])
@@ -212,7 +233,10 @@ def handle_read(connection, data):
                 connection.read_buffer = ''
 
             case 'on':
-                if not (connection.read_buffer.startswith('1') or connection.read_buffer.startswith('2') or connection.read_buffer.startswith('3')):
+                if not (connection.read_buffer.startswith('1') or 
+                        connection.read_buffer.startswith('2') or 
+                        connection.read_buffer.startswith('3')):
+                    # Expecting a command starting with '1', '2', or '3'
                     disconnect_client(connection)
                     return
 
@@ -224,14 +248,18 @@ def handle_read(connection, data):
                 connection.status = 'result'
 
 def execute_command(connection, data):
+    # Execute the client's command based on the protocol
     try:
         if data.startswith('1'):
+            # Calculate operation
             data = data[2:]
             num1, op, num2 = data.split()
             return str(calculate(num1=int(num1), op=op, num2=int(num2)))
         if data.startswith('2'):
+            # Find maximum number
             return maximum(connection, data[2:])
         if data.startswith('3'):
+            # Find prime factors
             return factors(connection, data[2:])
         return None
     except Exception as e:
@@ -239,6 +267,7 @@ def execute_command(connection, data):
         return None
 
 def calculate(num1, op, num2):
+    # Perform basic arithmetic operations
     try:
         res = None
         if op == '+':
@@ -270,6 +299,7 @@ def calculate(num1, op, num2):
         return f"error: {e}"
 
 def maximum(connection, data):
+    # Find the maximum number in a list provided by the client
     try:
         numbers = data.split(',')
         numbers = [int(number) for number in numbers]
@@ -280,6 +310,7 @@ def maximum(connection, data):
         return None
 
 def factors(connection, data):
+    # Calculate the prime factors of a given number
     try:
         n = int(data)
         factors = set()
