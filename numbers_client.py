@@ -103,7 +103,7 @@ def execute_command(client_socket: socket.socket):
 def main():
     # Default values
     default_hostname = "localhost"
-    default_port = 1338
+    default_port = 1337
 
     # Parse arguments
     hostname = sys.argv[1] if len(sys.argv) > 1 else default_hostname
