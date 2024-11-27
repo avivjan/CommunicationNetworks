@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import re
 import sys
 import socket
@@ -22,6 +24,7 @@ def handle_auth(client_socket: socket.socket) -> bool:
     resp = None
 
     # If it is the first auth attempt than receive login message
+    
     if not SECOND_ATTEMPT:
         resp = client_socket.recv(1024).decode()
         print(resp)
@@ -56,11 +59,12 @@ def handle_auth(client_socket: socket.socket) -> bool:
     client_socket.sendall(f"0 {username},{password}{MESSAGE_SEP}".encode())
 
     auth_message = client_socket.recv(1024).decode()
-    print(auth_message)
     if auth_message == FAILURE_PACKET:
         print(FAILED_LOGIN_MESSAGE)
         SECOND_ATTEMPT = True
         return False
+    else:
+        print(auth_message)
     return True
 
 
@@ -99,7 +103,7 @@ def execute_command(client_socket: socket.socket):
 def main():
     # Default values
     default_hostname = "localhost"
-    default_port = 1337
+    default_port = 1338
 
     # Parse arguments
     hostname = sys.argv[1] if len(sys.argv) > 1 else default_hostname
@@ -126,5 +130,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
