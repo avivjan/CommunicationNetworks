@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import sys        # For command-line arguments
 import socket     # For network socket operations
 import select     # For multiplexing I/O over sockets
