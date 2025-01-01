@@ -10,6 +10,10 @@ QUIT_MESSAGE = 'q'
 DIRECTION_MAP = {'w': 0, 'a': 1, 's': 2, 'd': 3}
 ROLES = {'watcher': 0, 'cman': 1, 'spirit': 2}
 
+GAME_UPDATE_OPCODE = 0x80
+GAME_END_OPCODE = 0x8F
+ERROR_OPCODE = 0xFF
+
 def receive_server_message(message: bytes):
     """
 
@@ -18,17 +22,27 @@ def receive_server_message(message: bytes):
     """
     opcode = message[0]
 
+
     # Game state update
     if opcode == 0x80:
-        pass
+        return handle_game_state_update(message[1:])
 
     # Game end
     elif opcode == 0x8F:
+        #TODO - add handle for game end and return
         pass
 
     # Error
     elif opcode == 0xFF:
+        # TODO - add handle for error and return
         pass
+
+
+def handle_game_state_update(message: bytes):
+    # If this game state update than check if value is 1 if so than can move will be True else false
+    can_move = message[0] == 1
+
+
 
 
 
@@ -91,8 +105,9 @@ def main():
                     send_quit_message(sock, server_address)
                     break
 
-                # Map key presses to directions and send to server
+                #todo - check if player can move - if not than continue as player cannot move
 
+                # Map key presses to directions and send to server
                 for key in keys:
                     if key in DIRECTION_MAP:
                         send_move_message(sock, server_address, DIRECTION_MAP[key])
