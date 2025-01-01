@@ -7,7 +7,8 @@ import argparse
 
 KEYS_TO_HOOK = ['w', 'a', 's', 'd', 'q']
 QUIT_MESSAGE = 'q'
-
+DIRECTION_MAP = {'w': 0, 'a': 1, 's': 2, 'd': 3}
+ROLES = {'watcher': 0, 'cman': 1, 'spirit': 2}
 
 def receive_server_message(message: bytes):
     """
@@ -31,6 +32,9 @@ def receive_server_message(message: bytes):
 
 
 
+def send_join_message(sock: socket.socket, server_address: tuple, role: int):
+    join_message = bytes([0x00, role])
+    sock.sendto(join_message, server_address)
 
 
 def send_quit_message(sock: socket.socket, server_address: tuple):
@@ -39,9 +43,10 @@ def send_quit_message(sock: socket.socket, server_address: tuple):
     :param sock: The socket object used to communicate with the server.
     :param server_address: The server's IP address and port.
     """
-    quit_message = bytes([0x0F])  # OPCODE for quit
+    quit_message = bytes([0x0F])
     sock.sendto(quit_message, server_address)
     print("Quit message sent to server.")
+
 
 def send_move_message(sock: socket.socket, server_address: Tuple, direction: int):
     """
@@ -50,7 +55,7 @@ def send_move_message(sock: socket.socket, server_address: Tuple, direction: int
     :param direction: The direction the player chose to go.
     :return:
     """
-    move_message = bytes([0x01, direction])  # OPCODE for movement
+    move_message = bytes([0x01, direction])
     sock.sendto(move_message, server_address)
 
 
@@ -73,6 +78,9 @@ def main():
     print(f"Client started with role: {role}. Connecting to {server_address}. Press 'q' to quit.")
 
     try:
+        # Send join message
+        send_join_message(sock, server_address, ROLES[role])
+
         while True:
             # Check for pressed keys
             keys = cman_utils.get_pressed_keys(keys_filter=KEYS_TO_HOOK)
@@ -84,10 +92,10 @@ def main():
                     break
 
                 # Map key presses to directions and send to server
-                direction_map = {'w': 0, 'a': 1, 's': 2, 'd': 3}
+
                 for key in keys:
-                    if key in direction_map:
-                        send_move_message(sock, server_address, direction_map[key])
+                    if key in DIRECTION_MAP:
+                        send_move_message(sock, server_address, DIRECTION_MAP[key])
                         print(f"Sent move: {key}")
 
             # Listen for server updates
