@@ -1,3 +1,5 @@
+from typing import Tuple
+
 import cman_utils
 import socket
 import time
@@ -7,7 +9,31 @@ KEYS_TO_HOOK = ['w', 'a', 's', 'd', 'q']
 QUIT_MESSAGE = 'q'
 
 
-def send_quit_message(sock: socket.socket, server_address: str):
+def receive_server_message(message: bytes):
+    """
+
+    :param message: The message to unpack
+    :return:
+    """
+    opcode = message[0]
+
+    # Game state update
+    if opcode == 0x80:
+        pass
+
+    # Game end
+    elif opcode == 0x8F:
+        pass
+
+    # Error
+    elif opcode == 0xFF:
+        pass
+
+
+
+
+
+def send_quit_message(sock: socket.socket, server_address: tuple):
     """
     Sends a quit message to the server.
     :param sock: The socket object used to communicate with the server.
@@ -17,7 +43,7 @@ def send_quit_message(sock: socket.socket, server_address: str):
     sock.sendto(quit_message, server_address)
     print("Quit message sent to server.")
 
-def send_move_message(sock: socket.socket, server_address: str, direction: int):
+def send_move_message(sock: socket.socket, server_address: Tuple, direction: int):
     """
     :param sock: The socket object used to communicate with the server.
     :param server_address: The server's IP address and port.
