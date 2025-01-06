@@ -96,6 +96,16 @@ def wait_for_move_confirmation(sock: socket.socket):
             continue
         can_move = handle_game_state_update(data)
 
+def handle_get_update(sock: socket.socket):
+    # Listen for server updates
+    try:
+        sock.settimeout(0.1)  # Non-blocking wait
+        data, _ = sock.recvfrom(1024)
+        print(f"Server response: {data}")
+    except socket.timeout:
+        pass  # No data received within the timeout
+    return data
+
 
 def main():
     # Argument parsing
@@ -133,7 +143,10 @@ def main():
                     send_quit_message(sock, server_address)
                     break
 
-                #todo - check if player can move - if not than continue as player cannot move
+                # Check for update from server and update accordingly
+                update_message = handle_get_update(sock)
+                if update_message:
+                    receive_server_message(update_message)
 
                 # Map key presses to directions and send to server
                 for key in keys:
@@ -141,16 +154,9 @@ def main():
                         send_move_message(sock, server_address, DIRECTION_MAP[key])
                         print(f"Sent move: {key}")
 
-            # Listen for server updates
-            try:
-                sock.settimeout(0.1)  # Non-blocking wait
-                data, _ = sock.recvfrom(1024)
-                print(f"Server response: {data}")
-            except socket.timeout:
-                pass  # No data received within the timeout
-
-            # Add a short delay
-            time.sleep(0.1)
+            #
+            # # Add a short delay
+            # time.sleep(0.1)
     except KeyboardInterrupt:
         print("Exiting due to user interrupt.")
     finally:
