@@ -38,7 +38,7 @@ def receive_server_message(message: bytes):
         pass
 
 
-def handle_game_state_update(message: bytes):
+def handle_game_state_update(message: bytes) -> bool:
     # If this game state update than check if value is 1 if so than can move will be True else false
     can_move = message[1] == 0
     cman_coords = message[2:4]
@@ -46,6 +46,7 @@ def handle_game_state_update(message: bytes):
     attempts = message[6]
     collected = message[7:12]
 
+    return can_move
     #TODO change game based on the info read above
 
 def handle_game_end(message: bytes):
@@ -86,6 +87,14 @@ def send_move_message(sock: socket.socket, server_address: Tuple, direction: int
     move_message = bytes([0x01, direction])
     sock.sendto(move_message, server_address)
 
+def wait_for_move_confirmation(sock: socket.socket):
+    can_move = False
+    while not can_move:
+        data, _ = sock.recvfrom(1024)
+        # If message is not game state update
+        if data[0] != 0x80:
+            continue
+        can_move = handle_game_state_update(data)
 
 
 def main():
@@ -108,6 +117,11 @@ def main():
     try:
         # Send join message
         send_join_message(sock, server_address, ROLES[role])
+
+        # In case of watcher it is 0 otherwise 1 or 2
+        if ROLES[role]:
+            wait_for_move_confirmation(sock)
+
 
         while True:
             # Check for pressed keys
