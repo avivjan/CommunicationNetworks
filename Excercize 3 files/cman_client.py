@@ -25,26 +25,40 @@ def receive_server_message(message: bytes):
 
     # Game state update
     if opcode == 0x80:
-        return handle_game_state_update(message[1:])
+        return handle_game_state_update(message)
 
     # Game end
     elif opcode == 0x8F:
-        #TODO - add handle for game end and return
+        handle_game_end(message)
         pass
 
     # Error
     elif opcode == 0xFF:
-        # TODO - add handle for error and return
+        handle_error(message)
         pass
 
 
 def handle_game_state_update(message: bytes):
     # If this game state update than check if value is 1 if so than can move will be True else false
-    can_move = message[0] == 1
+    can_move = message[1] == 0
+    cman_coords = message[2:4]
+    spirit_coords = message[4:6]
+    attempts = message[6]
+    collected = message[7:12]
 
+    #TODO change game based on the info read above
 
+def handle_game_end(message: bytes):
+    cman_won = message[1] == 1
+    cman_num_caught = message[2]
+    cman_points_collected = message[3]
 
+    #TODO Change game based on the info
 
+def handle_error(message: bytes):
+    error_data = message[1:12]
+
+    #TODO add handle of the data
 
 def send_join_message(sock: socket.socket, server_address: tuple, role: int):
     join_message = bytes([0x00, role])
