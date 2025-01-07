@@ -15,6 +15,8 @@ ROLES = {'watcher': 0, 'cman': 1, 'spirit': 2}
 GAME_UPDATE_OPCODE = 0x80
 GAME_END_OPCODE = 0x8F
 ERROR_OPCODE = 0xFF
+# Get the current map, update the map and print it
+map_data = read_map("map.txt")
 
 def receive_server_message(message: bytes):
     """
@@ -39,7 +41,9 @@ def receive_server_message(message: bytes):
         pass
 
 
-def handle_game_state_update(message: bytes, map_data: str) -> bool:
+def handle_game_state_update(message: bytes) -> bool:
+
+    global map_data
     # If this game state update than check if value is 1 if so than can move will be True else false
     can_move = message[1] == 0
     cman_coords = (message[2], messages[3])
@@ -189,9 +193,6 @@ def main():
     try:
         # Send join message
         send_join_message(sock, server_address, ROLES[role])
-
-        # Get the current map, update the map and print it
-        map_data = read_map("map.txt")
 
         # In case of watcher it is 0 otherwise 1 or 2
         if ROLES[role]:
