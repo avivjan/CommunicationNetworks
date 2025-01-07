@@ -28,7 +28,7 @@ def main():
         while True:
             check_for_inactive_clients()
             update_client_game_state_periodically()
-            read_sockets, _, _ = select.select([server_socket], [], [], 0.1)
+            read_sockets, _, _ = select.select([server_socket], [], [], 0)
             for sock in read_sockets:
                 data, addr = sock.recvfrom(1024)
                 data = data.decode()
