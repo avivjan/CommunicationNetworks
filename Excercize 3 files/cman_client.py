@@ -98,6 +98,7 @@ def wait_for_move_confirmation(sock: socket.socket):
     can_move = False
     while not can_move:
         data, _ = sock.recvfrom(1024)
+        print(f"Data inside waiting for move confirmation: {data}")
         # If message is not game state update
         if data[0] != GAME_UPDATE_OPCODE:
             continue
