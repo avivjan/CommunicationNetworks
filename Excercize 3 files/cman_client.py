@@ -232,6 +232,7 @@ def main():
             # Add a short delay
             time.sleep(0.1)
     except KeyboardInterrupt:
+        send_quit_message(sock, server_address)
         print("Exiting due to user interrupt.")
     finally:
         sock.close()
