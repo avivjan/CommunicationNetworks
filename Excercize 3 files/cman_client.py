@@ -32,7 +32,6 @@ def receive_server_message(message: bytes):
     # Game end
     elif opcode == GAME_END_OPCODE:
         handle_game_end(message)
-        pass
 
     # Error
     elif opcode == ERROR_OPCODE:
@@ -52,23 +51,17 @@ def handle_game_state_update(message: bytes, map_data: str) -> bool:
     cman_utils.clear_print()
     print_pacman_map()
 
-
-
-
-    return can_move
-    #TODO change game based on the info read above
-
 def handle_game_end(message: bytes):
     cman_won = message[1] == 1
     cman_num_caught = message[2]
     cman_points_collected = message[3]
 
-    #TODO Change game based on the info
+    winner = "cman" if cman_won else "spirit"
+    print(f"Winner is: {winner}\nSpirit score: {cman_num_caught}\nCman scroe: {cman_points_collected}")
 
 def handle_error(message: bytes):
     error_data = message[1:12]
-
-    #TODO add handle of the data
+    print(f"Error is: {error_data}")
 
 def send_join_message(sock: socket.socket, server_address: tuple, role: int):
     join_message = bytes([0x00, role])
@@ -103,7 +96,7 @@ def wait_for_move_confirmation(sock: socket.socket):
         # If message is not game state update
         if data[0] != GAME_UPDATE_OPCODE:
             continue
-        can_move = handle_game_state_update(data)
+        can_move = data[1] == 0
 
 def handle_get_update(sock: socket.socket):
     # Listen for server updates
@@ -220,6 +213,9 @@ def main():
                 update_message = handle_get_update(sock)
                 if update_message:
                     receive_server_message(update_message)
+                    if update_message != GAME_UPDATE_OPCODE:
+                        sock.close()
+                        exit()
 
                 # Map key presses to directions and send to server
                 for key in keys:
