@@ -1,6 +1,8 @@
+from pyexpat.errors import messages
 from typing import Tuple
 
 import cman_utils
+from cman_game_map import read_map
 import socket
 import time
 import argparse
@@ -24,27 +26,34 @@ def receive_server_message(message: bytes):
 
 
     # Game state update
-    if opcode == 0x80:
+    if opcode == GAME_UPDATE_OPCODE:
         return handle_game_state_update(message)
 
     # Game end
-    elif opcode == 0x8F:
+    elif opcode == GAME_END_OPCODE:
         handle_game_end(message)
         pass
 
     # Error
-    elif opcode == 0xFF:
+    elif opcode == ERROR_OPCODE:
         handle_error(message)
         pass
 
 
-def handle_game_state_update(message: bytes) -> bool:
+def handle_game_state_update(message: bytes, map_data: str) -> bool:
     # If this game state update than check if value is 1 if so than can move will be True else false
     can_move = message[1] == 0
-    cman_coords = message[2:4]
-    spirit_coords = message[4:6]
+    cman_coords = (message[2], messages[3])
+    spirit_coords = (message[4], message[5])
     attempts = message[6]
     collected = message[7:12]
+
+    map_data = update_map(map_string=map_data, pacman_pos=cman_coords, ghost_pos=spirit_coords)
+    cman_utils.clear_print()
+    print_pacman_map()
+
+
+
 
     return can_move
     #TODO change game based on the info read above
@@ -92,7 +101,7 @@ def wait_for_move_confirmation(sock: socket.socket):
     while not can_move:
         data, _ = sock.recvfrom(1024)
         # If message is not game state update
-        if data[0] != 0x80:
+        if data[0] != GAME_UPDATE_OPCODE:
             continue
         can_move = handle_game_state_update(data)
 
@@ -107,7 +116,67 @@ def handle_get_update(sock: socket.socket):
     return data
 
 
+def update_map(map_string, pacman_pos=None, ghost_pos=None):
+    """
+    Updates the map with new positions for Pacman (C) and Ghost (S).
+
+    Args:
+        map_string (str): The map string to process.
+        pacman_pos (tuple): The new position of Pacman as (row, col), optional.
+        ghost_pos (tuple): The new position of Ghost as (row, col), optional.
+
+    Returns:
+        str: The updated map string.
+    """
+    # Convert the map string into a list of rows for easier manipulation
+    rows = map_string.split('\n')
+
+    # Update Pacman position if provided
+    if pacman_pos:
+        old_row = [row for row in rows if 'C' in row]
+        if old_row:
+            old_row_idx = rows.index(old_row[0])
+            old_col_idx = old_row[0].index('C')
+            rows[old_row_idx] = rows[old_row_idx][:old_col_idx] + 'F' + rows[old_row_idx][old_col_idx + 1:]
+        row, col = pacman_pos
+        rows[row] = rows[row][:col] + 'C' + rows[row][col + 1:]
+
+    # Update Ghost position if provided
+    if ghost_pos:
+        old_row = [row for row in rows if 'S' in row]
+        if old_row:
+            old_row_idx = rows.index(old_row[0])
+            old_col_idx = old_row[0].index('S')
+            rows[old_row_idx] = rows[old_row_idx][:old_col_idx] + 'F' + rows[old_row_idx][old_col_idx + 1:]
+        row, col = ghost_pos
+        rows[row] = rows[row][:col] + 'S' + rows[row][col + 1:]
+
+    # Join rows back into a string
+    return '\n'.join(rows)
+
+
+def print_pacman_map():
+    """ Function that prints the current game map """
+    # Split the map string into rows
+    rows = map_data.split('\n')
+
+    # Define a legend for better readability
+    legend = {
+        'W': '█',  # Wall
+        'F': ' ',  # Free space
+        'P': '.',  # Dot
+        'C': 'C',  # Pacman
+        'S': 'S'  # Ghost
+    }
+
+    # Convert each row using the legend
+    for row in rows:
+        print(''.join(legend[char] for char in row))
+
+
 def main():
+    global map_data
+
     # Argument parsing
     parser = argparse.ArgumentParser(description="Cman Game Client")
     parser.add_argument("role", choices=["cman", "spirit", "watcher"], help="Role to play: cman, spirit, or watcher.")
@@ -128,9 +197,13 @@ def main():
         # Send join message
         send_join_message(sock, server_address, ROLES[role])
 
+        # Get the current map, update the map and print it
+        map_data = read_map("map.txt")
+
         # In case of watcher it is 0 otherwise 1 or 2
         if ROLES[role]:
             wait_for_move_confirmation(sock)
+
 
 
         while True:
