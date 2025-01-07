@@ -224,9 +224,9 @@ def main():
                         send_move_message(sock, server_address, DIRECTION_MAP[key])
                         print(f"Sent move: {key}")
 
-            #
-            # # Add a short delay
-            # time.sleep(0.1)
+
+            # Add a short delay
+            time.sleep(0.1)
     except KeyboardInterrupt:
         print("Exiting due to user interrupt.")
     finally:
