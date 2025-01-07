@@ -215,6 +215,7 @@ def main():
                 # Check for update from server and update accordingly
                 update_message = handle_get_update(sock)
                 if update_message:
+                    print(f"Received update message: {update_message}")
                     receive_server_message(update_message)
                     if update_message != GAME_UPDATE_OPCODE:
                         sock.close()
