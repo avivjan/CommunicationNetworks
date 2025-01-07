@@ -54,7 +54,6 @@ class Game():
 
 		"""
 		self.cur_coords = self.start_coords[::]
-		print(self.cur_coords)
 		self.score = 0
 		for p in self.points.keys():
 			self.points[p] = 1
@@ -133,7 +132,7 @@ class Game():
 		if self.state != State.WIN:
 			self.state = State.WIN
 			self.winner = player
-		return get_winner()
+		return self.get_winner()
 
 	def can_move(self, player):
 		"""

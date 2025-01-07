@@ -11,7 +11,7 @@ def main():
     clients = {}
     is_cman_occupied = False
     is_spirit_occupied = False
-    game = Game("cman_map.txt")
+    game = Game("map.txt")
     
     port = parse_command_line_args().port
     print(f"Server will start on port {port}")
@@ -26,11 +26,11 @@ def main():
     
     try:
         while True:
-            check_for_inactive_clients()
             update_client_game_state_periodically()
             read_sockets, _, _ = select.select([server_socket], [], [], 0)
             for sock in read_sockets:
                 data, addr = sock.recvfrom(1024)
+                print(f"Received message from {addr}: {data}")
                 data = data.decode()
                 opcode = data[0]
                 message = data[1:]
@@ -45,12 +45,7 @@ def update_client_game_state_periodically():
         publish_game_state_update_to_all()
         
         
-def check_for_inactive_clients():
-    current_time = time.time()
-    for addr, client_data in list(clients.items()):
-        if current_time - client_data['last_active'] > 10:  # 10-second timeout
-            print(f"Client {addr} timed out.")
-            handle_quit("", addr)
+
             
 def shutdown_server():
     print("Notifying clients about server shutdown...")
@@ -65,15 +60,13 @@ def shutdown_server():
     print("Server socket closed. Goodbye!")
 
 def parse_command_line_args():
-    parser = argparse.ArgumentParser(description="Start the cman_server with an optional port parameter.")
-    parser.add_argument(
-        '-p', 
-        type=int, 
-        default=1337, 
-        help='Specify the port number. Default is 1337.'
-    )
+    parser = argparse.ArgumentParser(description="Cman Game Server")
+    parser.add_argument("-p", "--port", type=int, default=1337, help="Server port (default: 1337).")
     args = parser.parse_args()
     return args
+
+    args = parser.parse_args()
+
 
 def handle_message(opcode, message, addr):
     if addr in clients: # we don't want to update last_active for unknown clients
@@ -86,6 +79,7 @@ def handle_message(opcode, message, addr):
         handle_quit(message, addr)
 
 def handle_join(message, addr):
+    global is_cman_occupied, is_spirit_occupied
     if len(message) != 1:
         publish_error(addr, "Invalid join message")
         return
@@ -108,6 +102,7 @@ def handle_join(message, addr):
             return
         clients[addr] = {'player': Player.CMAN, 'last_active': time.time()}
         is_cman_occupied = True
+        game.next_round()
         publish_game_state_update_to_all()
     elif role == '\x02':
         if is_spirit_occupied:
@@ -115,6 +110,7 @@ def handle_join(message, addr):
             return
         clients[addr] = {'player': Player.SPIRIT, 'last_active': time.time()}
         is_spirit_occupied = True
+        game.next_round()
         publish_game_state_update_to_all()
     else:
         publish_error(addr, "Invalid role in join message")
@@ -122,13 +118,21 @@ def handle_join(message, addr):
 
 
 def calculate_collected_points():
-    collected_points = ""
     points = game.get_points()
-    for point in points.values():
-        collected_points += str(point)
-    collected_points = collected_points.encode()
-    return collected_points
+    collected_points = ''
 
+    # Build the binary string
+    for point in sorted(points.keys()):
+        collected_points += str(flip(points[point]))
+
+    # Ensure exactly 40 bits
+    collected_points = collected_points.ljust(40, '0')[:40]
+
+    # Convert binary string to 5 bytes
+    return int(collected_points, 2).to_bytes(5, byteorder='big')
+
+def flip(bit):
+    return 1 if bit == 0 else 0
 def handle_player_movement(message, addr): 
     if addr not in clients:
         publish_error(addr, "User not joined")
@@ -159,12 +163,21 @@ def publish_game_state_update_to_all():
     collected_points = calculate_collected_points()
     for client_addr in clients.keys():
         player = clients[client_addr]['player']
-        freeze = b'\x00' if player == Player.NONE else bytes(game.can_move(player))
+        freeze = calc_freeze(player)
         try:
-            server_socket.sendto(opcode + freeze + cman_cor + spirit_cor + spirit_score + collected_points, client_addr)
+            message = opcode + freeze + cman_cor + spirit_cor + spirit_score + collected_points
+            print(f"Sending message to {client_addr}: {message}")
+            server_socket.sendto(message, client_addr)
         except BlockingIOError:
             print(f"Failed to send game state update to {client_addr}: socket buffer is full")
-
+def calc_freeze(player):
+    if player == Player.NONE:
+        return b'\x00'
+    else:
+        if game.can_move(player):
+            return b'\x01'
+        else:
+            return b'\x00'
 
 def handle_quit(message, addr):
     if addr not in clients:
@@ -176,12 +189,12 @@ def handle_quit(message, addr):
     if clients[addr]['player'] == Player.CMAN:
         global is_cman_occupied
         is_cman_occupied = False
-        declare_winner(Player.SPIRIT)
+        game.declare_winner(Player.SPIRIT)
         handle_end_game(Player.SPIRIT)
     elif clients[addr]['player'] == Player.SPIRIT:
         global is_spirit_occupied
         is_spirit_occupied = False
-        declare_winner(Player.CMAN)
+        game.declare_winner(Player.CMAN)
         handle_end_game(Player.CMAN)
     del clients[addr]
 
@@ -200,13 +213,17 @@ def send_win_message(winner):
     cman_score = bytes(game.get_game_progress()[1])
     for client_addr in clients.keys():
         try:
-            server_socket.sendto(b'\x8F' + winner_in_bytes + spirit_score, client_addr)
+            message = b'\x8F' + winner_in_bytes + spirit_score
+            server_socket.sendto(message, client_addr)
+            print(f"Sending message to {client_addr}: {message}")
         except BlockingIOError:
             print(f"Failed to send win message to {client_addr}: socket buffer is full")
 
 def publish_error(addr, message):
     try:
-        server_socket.sendto(b'\xFF' + message.encode(), addr)
+        message = b'\xFF' + message.encode()
+        server_socket.sendto(message, addr)
+        print(f"Sending error message to {addr}: {message}")
     except BlockingIOError:
         print(f"Failed to send error message to {addr}: socket buffer is full")
 
