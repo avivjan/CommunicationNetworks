@@ -94,6 +94,7 @@ def send_move_message(sock: socket.socket, server_address: Tuple, direction: int
     sock.sendto(move_message, server_address)
 
 def wait_for_move_confirmation(sock: socket.socket):
+    print("Waiting for move confirmation")
     can_move = False
     while not can_move:
         data, _ = sock.recvfrom(1024)
@@ -101,6 +102,7 @@ def wait_for_move_confirmation(sock: socket.socket):
         if data[0] != GAME_UPDATE_OPCODE:
             continue
         can_move = data[1] == 0
+    print("Got move confirmation")
 
 def handle_get_update(sock: socket.socket):
     # Listen for server updates
