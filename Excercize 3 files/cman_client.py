@@ -46,7 +46,7 @@ def handle_game_state_update(message: bytes) -> bool:
     global map_data
     # If this game state update than check if value is 1 if so than can move will be True else false
     can_move = message[1] == 0
-    cman_coords = (message[2], messages[3])
+    cman_coords = (message[2], message[3])
     spirit_coords = (message[4], message[5])
     attempts = message[6]
     collected = message[7:12]
