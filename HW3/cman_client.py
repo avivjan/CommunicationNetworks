@@ -25,7 +25,7 @@ def receive_server_message(message: bytes):
     :return:
     """
     opcode = message[0]
-
+    print(f"Message from server is: {message}")
 
     # Game state update
     if opcode == GAME_UPDATE_OPCODE:
@@ -38,7 +38,6 @@ def receive_server_message(message: bytes):
     # Error
     elif opcode == ERROR_OPCODE:
         handle_error(message)
-        pass
 
 
 def handle_game_state_update(message: bytes) -> bool:
@@ -208,6 +207,7 @@ def main():
             keys = cman_utils.get_pressed_keys(keys_filter=KEYS_TO_HOOK)
 
             if keys:
+                print(f"Pressed keys are: {keys}")
                 if QUIT_MESSAGE in keys:
                     # Handle quit
                     send_quit_message(sock, server_address)
@@ -218,7 +218,7 @@ def main():
                 if update_message:
                     print(f"Received update message: {update_message}")
                     receive_server_message(update_message)
-                    if update_message != GAME_UPDATE_OPCODE:
+                    if update_message[0] != GAME_UPDATE_OPCODE:
                         sock.close()
                         exit()
 
@@ -234,6 +234,9 @@ def main():
     except KeyboardInterrupt:
         send_quit_message(sock, server_address)
         print("Exiting due to user interrupt.")
+
+    except Exception as e:
+        print(f"Exception is: {e}")
     finally:
         sock.close()
 
