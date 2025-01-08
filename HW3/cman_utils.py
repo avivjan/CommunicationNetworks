@@ -1,13 +1,24 @@
+import sys
 import pynput, time
 
 def _flush_input():
+    """
+    Clears the input buffer. Works for both Windows and Unix-based systems.
+    """
+    if not sys.stdin.isatty():
+        # If the input is not a terminal, skip flushing
+        return
     try:
         import msvcrt
         while msvcrt.kbhit():
             msvcrt.getch()
     except ImportError:
-        import sys, termios
-        termios.tcflush(sys.stdin, termios.TCIOFLUSH)
+        import termios
+        try:
+            termios.tcflush(sys.stdin, termios.TCIFLUSH)
+        except termios.error:
+            pass  # Ignore errors when not in a terminal
+
 
 def get_pressed_keys(keys_filter = None):
     """
