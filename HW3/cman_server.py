@@ -27,7 +27,7 @@ def main():
     try:
         while True:
             update_client_game_state_periodically()
-            read_sockets, _, _ = select.select([server_socket], [], [], 0)
+            read_sockets, _, _ = select.select([server_socket], [], [], 0.1)
             for sock in read_sockets:
                 data, addr = sock.recvfrom(1024)
                 print(f"Received message from {addr}: {data}")
@@ -93,7 +93,7 @@ def handle_join(message, addr):
         publish_game_state_update_to_all()
     
     if game.state != State.WAIT:
-        publish_error(addr, "Game has already started")
+        publish_error(addr, f"Game has already started, state = {game.state}")
         return
     
     if role == '\x01':
@@ -102,7 +102,8 @@ def handle_join(message, addr):
             return
         clients[addr] = {'player': Player.CMAN, 'last_active': time.time()}
         is_cman_occupied = True
-        game.next_round()
+        if is_spirit_occupied:
+            game.next_round()
         publish_game_state_update_to_all()
     elif role == '\x02':
         if is_spirit_occupied:
@@ -110,7 +111,8 @@ def handle_join(message, addr):
             return
         clients[addr] = {'player': Player.SPIRIT, 'last_active': time.time()}
         is_spirit_occupied = True
-        game.next_round()
+        if is_cman_occupied:
+            game.next_round()
         publish_game_state_update_to_all()
     else:
         publish_error(addr, "Invalid role in join message")
@@ -172,12 +174,12 @@ def publish_game_state_update_to_all():
             print(f"Failed to send game state update to {client_addr}: socket buffer is full")
 def calc_freeze(player):
     if player == Player.NONE:
-        return b'\x00'
+        return b'\x01'
     else:
         if game.can_move(player):
-            return b'\x01'
-        else:
             return b'\x00'
+        else:
+            return b'\x01'
 
 def handle_quit(message, addr):
     if addr not in clients:
