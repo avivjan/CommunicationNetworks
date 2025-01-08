@@ -152,7 +152,7 @@ def handle_player_movement(message, addr):
     
     game.apply_move(clients[addr]['player'], direction)
     if game.get_winner() != Player.NONE:
-        handle_end_game(game.get_winner())
+        handle_end_game()
     publish_game_state_update_to_all()
 
 def publish_game_state_update_to_all():
@@ -192,13 +192,13 @@ def handle_quit(message, addr):
         global is_cman_occupied
         is_cman_occupied = False
         game.declare_winner(Player.SPIRIT)
-        handle_end_game(Player.SPIRIT)
+        handle_end_game()
     elif clients[addr]['player'] == Player.SPIRIT:
         global is_spirit_occupied
         is_spirit_occupied = False
         game.declare_winner(Player.CMAN)
-        handle_end_game(Player.CMAN)
-    del clients[addr]
+        handle_end_game()
+    #del clients[addr]
 
 def handle_end_game():
     winner = game.get_winner()
