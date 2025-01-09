@@ -150,6 +150,7 @@ def handle_player_movement(message, addr):
         publish_error(addr, "Watcher can't move")
         return
     
+    direction = int.from_bytes(direction.encode(), byteorder='big')
     game.apply_move(clients[addr]['player'], direction)
     if game.get_winner() != Player.NONE:
         handle_end_game()
@@ -198,7 +199,7 @@ def handle_quit(message, addr):
         is_spirit_occupied = False
         game.declare_winner(Player.CMAN)
         handle_end_game()
-    #del clients[addr]
+    clients.pop(addr)
 
 def handle_end_game():
     winner = game.get_winner()
