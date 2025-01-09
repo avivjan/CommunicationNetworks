@@ -171,7 +171,7 @@ def publish_game_state_update_to_all():
         try:
             message = opcode + freeze + cman_cor + spirit_cor + spirit_score + collected_points
             server_socket.sendto(message, client_addr)
-            print(f"sending game update with corrdinates: cman: {game.cur_coords[Player.CMAN]}, spirit: {game.cur_coords[Player.SPIRIT]}")
+            print(f"sending game update with corrdinates: cman: {game.cur_coords[Player.CMAN]}, spirit: {game.cur_coords[Player.SPIRIT]} to {client_addr}")
         except BlockingIOError:
             print(f"Failed to send game state update to {client_addr}: socket buffer is full")
 def calc_freeze(player):

@@ -167,6 +167,7 @@ class Game():
 
 		"""
 		if not self.can_move(player):
+			print("Player f{player} cannot move in this state of the game.")
 			return False
 
 		p_coords = self.cur_coords[player]
@@ -175,8 +176,10 @@ class Game():
 		next_coords = (p_coords[0] + dr, p_coords[1] + dc)
 
 		if any(x < 0 for x in next_coords) or next_coords[0] >= self.board_dims[0] or next_coords[1] >= self.board_dims[1]:
+			print(f"Player {player} tried to move out of bounds.")
 			return False
 		if self.board[next_coords[0]][next_coords[1]] not in gm.PASS_CHARS:
+			print(f"Player {player} tried to move into a wall.")
 			return False
 		else:
 			self.state = State.PLAY
