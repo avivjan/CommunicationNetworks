@@ -11,7 +11,7 @@ def main():
     clients = {}
     is_cman_occupied = False
     is_spirit_occupied = False
-    game = Game("/Users/user/PycharmProjects/NetworkCommunication/HW3/map.txt")
+    game = Game("map.txt")
     
     port = parse_command_line_args().port
     print(f"Server will start on port {port}")
@@ -90,11 +90,12 @@ def handle_join(message, addr):
     if role == '\x00':
         clients[addr] = {'player': Player.NONE, 'last_active': time.time()}
         publish_game_state_update_to_all()
+        return
     
     if game.state != State.WAIT:
         publish_error(addr, f"Game has already started, state = {game.state}")
         return
-    
+
     if role == '\x01':
         if is_cman_occupied:
             publish_error(addr, "Cman is already occupied")
@@ -115,7 +116,6 @@ def handle_join(message, addr):
         publish_game_state_update_to_all()
     else:
         publish_error(addr, "Invalid role in join message")
-        return
 
 
 def calculate_collected_points():
@@ -171,7 +171,6 @@ def publish_game_state_update_to_all():
         try:
             message = opcode + freeze + cman_cor + spirit_cor + spirit_score + collected_points
             server_socket.sendto(message, client_addr)
-            print(f"sending game update with corrdinates: cman: {game.cur_coords[Player.CMAN]}, spirit: {game.cur_coords[Player.SPIRIT]} to {client_addr}")
         except BlockingIOError:
             print(f"Failed to send game state update to {client_addr}: socket buffer is full")
 def calc_freeze(player):
@@ -219,7 +218,7 @@ def send_win_message(winner):
         try:
             message = b'\x8F' + winner_in_bytes + spirit_score + cman_score
             server_socket.sendto(message, client_addr)
-            print(f"Sending message to {client_addr}: {message}")
+            print(f"Sending win! message to {client_addr}: {message}")
         except BlockingIOError:
             print(f"Failed to send win message to {client_addr}: socket buffer is full")
 
