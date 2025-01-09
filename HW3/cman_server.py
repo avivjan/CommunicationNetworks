@@ -152,6 +152,7 @@ def handle_player_movement(message, addr):
     direction = int.from_bytes(direction.encode(), byteorder='big')
     print(f"Player {clients[addr]['player']} at {game.cur_coords[clients[addr]['player']]} wants to move {Direction(direction)}")
     game.apply_move(clients[addr]['player'], direction)
+    print(f"Player {clients[addr]['player']} moved to {game.cur_coords[clients[addr]['player']]}")
     if game.get_winner() != Player.NONE:
         handle_end_game()
     publish_game_state_update_to_all()
