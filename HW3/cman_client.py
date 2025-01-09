@@ -16,8 +16,7 @@ GAME_UPDATE_OPCODE = 0x80
 GAME_END_OPCODE = 0x8F
 ERROR_OPCODE = 0xFF
 # Get the current map, update the map and print it
-map_data = read_map("map.txt")
-last_message = b""
+map_data = read_map("/Users/user/PycharmProjects/NetworkCommunication/HW3/map.txt")
 
 def receive_server_message(message: bytes):
     """
@@ -109,8 +108,6 @@ def handle_get_update(sock: socket.socket):
     try:
         sock.settimeout(0.1)  # Non-blocking wait
         data, _ = sock.recvfrom(1024)
-        if data == last_message:
-            return None
         print(f"Server response: {data}")
     except socket.timeout:
         pass  # No data received within the timeout
@@ -174,6 +171,11 @@ def print_pacman_map():
     for row in rows:
         print(''.join(legend[char] for char in row))
 
+def print_game_map_to_screen():
+    global map_data
+    cman_utils.clear_print()
+    print_pacman_map()
+
 
 def main():
     global map_data
@@ -205,6 +207,7 @@ def main():
 
 
         while True:
+            print_game_map_to_screen()
             # Check for pressed keys
             keys = cman_utils.get_pressed_keys(keys_filter=KEYS_TO_HOOK)
 
