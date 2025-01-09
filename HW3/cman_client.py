@@ -22,33 +22,19 @@ message_queue = Queue()
 
 
 def update_map(map_string, pacman_pos=None, ghost_pos=None):
-    """
-    Updates the map with new positions for Pacman ('C') and Ghost ('S').
-
-    Args:
-        map_string (str): The current map as a string.
-        pacman_pos (tuple): New position for Pacman as (row, col), optional.
-        ghost_pos (tuple): New position for Ghost as (row, col), optional.
-
-    Returns:
-        str: Updated map string.
-    """
     rows = map_string.split('\n')
 
-    # Helper to clear old positions
     def clear_old_position(rows, char):
         for r_idx, row in enumerate(rows):
             if char in row:
                 c_idx = row.index(char)
                 rows[r_idx] = row[:c_idx] + 'F' + row[c_idx + 1:]
 
-    # Clear old positions
     if pacman_pos:
         clear_old_position(rows, 'C')
     if ghost_pos:
         clear_old_position(rows, 'S')
 
-    # Update new positions
     def update_position(rows, char, pos):
         if pos:
             row, col = pos
@@ -66,19 +52,16 @@ def update_map(map_string, pacman_pos=None, ghost_pos=None):
 
 
 def print_pacman_map():
-    """ Function that prints the current game map """
     rows = map_data.split('\n')
 
-    # Define a legend for better readability
     legend = {
-        'W': '█',  # Wall
-        'F': ' ',  # Free space
-        'P': '.',  # Dot
-        'C': 'C',  # Pacman
-        'S': 'S'   # Ghost
+        'W': '█',
+        'F': ' ',
+        'P': '.',
+        'C': 'C',
+        'S': 'S'
     }
 
-    # Convert each row using the legend
     for row in rows:
         print(''.join(legend[char] for char in row))
 
@@ -90,9 +73,6 @@ def print_game_map_to_screen():
 
 
 def receive_server_message(message: bytes):
-    """
-    Processes a message from the server.
-    """
     opcode = message[0]
     print(f"Message from server: {message}")
 
@@ -107,17 +87,12 @@ def receive_server_message(message: bytes):
 
 
 def handle_game_state_update(message: bytes):
-    """
-    Handles game state updates and updates the map accordingly.
-    """
     global map_data
 
-    # Extract game state details
     can_move = message[1] == 0
     pacman_coords = (message[2], message[3])
     ghost_coords = (message[4], message[5])
 
-    # Update the map
     try:
         map_data = update_map(map_string=map_data, pacman_pos=pacman_coords, ghost_pos=ghost_coords)
         print_game_map_to_screen()
@@ -155,6 +130,16 @@ def send_move_message(sock: socket.socket, server_address: Tuple, direction: int
     sock.sendto(move_message, server_address)
 
 
+def wait_for_move_confirmation(sock: socket.socket):
+    print("Waiting for move confirmation...")
+    can_move = False
+    while not can_move:
+        data, _ = sock.recvfrom(1024)
+        if data[0] == GAME_UPDATE_OPCODE:
+            can_move = data[1] == 0
+    print("Move confirmed by the server.")
+
+
 def handle_get_update(sock: socket.socket):
     global message_queue
 
@@ -177,7 +162,6 @@ def process_message_queue():
 def main():
     global map_data
 
-    # Argument parsing
     parser = argparse.ArgumentParser(description="Cman Game Client")
     parser.add_argument("role", choices=["cman", "spirit", "watcher"], help="Role to play: cman, spirit, or watcher.")
     parser.add_argument("addr", help="Server address (IP or hostname).")
@@ -187,7 +171,6 @@ def main():
     role = args.role
     server_address = (args.addr, args.port)
 
-    # Create a UDP socket
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     print(f"Client started with role: {role}. Connecting to {server_address}. Press 'q' to quit.")
@@ -195,14 +178,15 @@ def main():
     try:
         send_join_message(sock, server_address, ROLES[role])
 
+        if ROLES[role] != 0:  # If not watcher
+            wait_for_move_confirmation(sock)
+
         while True:
             print_game_map_to_screen()
 
-            # Process server updates
             handle_get_update(sock)
             process_message_queue()
 
-            # Check for user input
             keys = cman_utils.get_pressed_keys(keys_filter=KEYS_TO_HOOK)
             if keys:
                 if QUIT_MESSAGE in keys:
@@ -212,7 +196,7 @@ def main():
                 for key in keys:
                     if key in DIRECTION_MAP:
                         send_move_message(sock, server_address, DIRECTION_MAP[key])
-                        print(f"Sent move: {key}")
+                        wait_for_move_confirmation(sock)
 
             time.sleep(0.1)
 
