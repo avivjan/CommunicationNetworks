@@ -30,7 +30,6 @@ def main():
             read_sockets, _, _ = select.select([server_socket], [], [], 0.1)
             for sock in read_sockets:
                 data, addr = sock.recvfrom(1024)
-                print(f"Received message from {addr}: {data}")
                 data = data.decode()
                 opcode = data[0]
                 message = data[1:]
@@ -151,6 +150,7 @@ def handle_player_movement(message, addr):
         return
     
     direction = int.from_bytes(direction.encode(), byteorder='big')
+    print(f"Player {clients[addr]['player']} at {game.cur_coords[clients[addr]['player']]} wants to move {Direction(direction)}")
     game.apply_move(clients[addr]['player'], direction)
     if game.get_winner() != Player.NONE:
         handle_end_game()
@@ -169,7 +169,6 @@ def publish_game_state_update_to_all():
         freeze = calc_freeze(player)
         try:
             message = opcode + freeze + cman_cor + spirit_cor + spirit_score + collected_points
-            print(f"Sending message to {client_addr}: {message}")
             server_socket.sendto(message, client_addr)
         except BlockingIOError:
             print(f"Failed to send game state update to {client_addr}: socket buffer is full")
