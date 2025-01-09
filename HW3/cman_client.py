@@ -2,9 +2,17 @@ from typing import Tuple
 import socket
 import time
 import argparse
+import select
 from queue import Queue
 import cman_utils
 from cman_game_map import read_map
+import threading
+from pynput import keyboard
+from pynput.keyboard import Key
+from pynput.keyboard import Listener
+from cman_utils import key_listener
+from cman_utils import pressed_keys as key_queue 
+
 
 KEYS_TO_HOOK = ['w', 'a', 's', 'd', 'q']
 QUIT_MESSAGE = 'q'
@@ -16,9 +24,8 @@ GAME_END_OPCODE = 0x8F
 ERROR_OPCODE = 0xFF
 
 # Global variables
-map_data = read_map("/Users/user/PycharmProjects/NetworkCommunication/HW3/map.txt")
+map_data = read_map("map.txt")
 last_message = b""
-message_queue = Queue()
 
 
 def update_map(map_string, pacman_pos=None, ghost_pos=None):
@@ -141,7 +148,7 @@ def handle_error(message: bytes):
 
 def send_join_message(sock: socket.socket, server_address: tuple, role: int):
     join_message = bytes([0x00, role])
-    sock.sendto(join_message, server_address)
+    sock.sendto(join_message,server_address)
 
 
 def send_quit_message(sock: socket.socket, server_address: tuple):
@@ -155,23 +162,9 @@ def send_move_message(sock: socket.socket, server_address: Tuple, direction: int
     sock.sendto(move_message, server_address)
 
 
-def handle_get_update(sock: socket.socket):
-    global message_queue
-
-    try:
-        sock.settimeout(0.1)
-        data, _ = sock.recvfrom(1024)
-        message_queue.put(data)
-    except socket.timeout:
-        pass
 
 
-def process_message_queue():
-    global message_queue
-
-    while not message_queue.empty():
-        message = message_queue.get()
-        receive_server_message(message)
+        
 
 
 def main():
@@ -189,6 +182,10 @@ def main():
 
     # Create a UDP socket
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    
+    key_thread = threading.Thread(target=key_listener, args=(KEYS_TO_HOOK,), daemon=True)
+    key_thread.start()
+
 
     print(f"Client started with role: {role}. Connecting to {server_address}. Press 'q' to quit.")
 
@@ -196,25 +193,24 @@ def main():
         send_join_message(sock, server_address, ROLES[role])
 
         while True:
-            print_game_map_to_screen()
-
+                
             # Process server updates
-            handle_get_update(sock)
-            process_message_queue()
+            readable, _, _ = select.select([sock], [], [], 0.05)
+            if sock in readable:
+                data, _ = sock.recvfrom(1024)
+                receive_server_message(data)
+                
 
             # Check for user input
-            keys = cman_utils.get_pressed_keys(keys_filter=KEYS_TO_HOOK)
-            if keys:
-                if QUIT_MESSAGE in keys:
+            while not key_queue.empty():
+                key = key_queue.get()
+                if key == QUIT_MESSAGE:
                     send_quit_message(sock, server_address)
-                    break
+                    return
 
-                for key in keys:
-                    if key in DIRECTION_MAP:
-                        send_move_message(sock, server_address, DIRECTION_MAP[key])
-                        print(f"Sent move: {key}")
-
-            time.sleep(0.1)
+                if key in DIRECTION_MAP:
+                    send_move_message(sock, server_address, DIRECTION_MAP[key])
+                    print(f"Sent move: {key}")
 
     except KeyboardInterrupt:
         send_quit_message(sock, server_address)
