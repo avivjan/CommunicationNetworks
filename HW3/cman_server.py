@@ -11,7 +11,7 @@ def main():
     clients = {}
     is_cman_occupied = False
     is_spirit_occupied = False
-    game = Game("map.txt")
+    game = Game("/Users/user/PycharmProjects/NetworkCommunication/HW3/map.txt")
     
     port = parse_command_line_args().port
     print(f"Server will start on port {port}")
@@ -217,7 +217,7 @@ def send_win_message(winner):
     cman_score = bytes(game.get_game_progress()[1])
     for client_addr in clients.keys():
         try:
-            message = b'\x8F' + winner_in_bytes + spirit_score
+            message = b'\x8F' + winner_in_bytes + spirit_score + cman_score
             server_socket.sendto(message, client_addr)
             print(f"Sending message to {client_addr}: {message}")
         except BlockingIOError:
