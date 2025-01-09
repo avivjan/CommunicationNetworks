@@ -183,6 +183,9 @@ def main():
 
         while True:
             print_game_map_to_screen()
+            if ROLES[role] == 0:
+                time.sleep(0.1)
+                continue
 
             handle_get_update(sock)
             process_message_queue()
@@ -196,7 +199,6 @@ def main():
                 for key in keys:
                     if key in DIRECTION_MAP:
                         send_move_message(sock, server_address, DIRECTION_MAP[key])
-                        wait_for_move_confirmation(sock)
 
             time.sleep(0.1)
 
