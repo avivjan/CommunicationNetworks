@@ -203,12 +203,15 @@ def handle_quit(message, addr):
     clients.pop(addr)
 
 def handle_end_game():
+    global is_cman_occupied, is_spirit_occupied
     winner = game.get_winner()
     start_time = time.time()
     while time.time() - start_time < 10:
         send_win_message(winner)
         time.sleep(1)
     game.restart_game()
+    is_cman_occupied = False
+    is_spirit_occupied = False
     clients.clear()
 
 def send_win_message(winner):
