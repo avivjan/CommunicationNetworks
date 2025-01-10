@@ -6,8 +6,7 @@ import cman_utils
 from cman_game_map import read_map
 import threading
 from cman_utils import key_listener
-from cman_utils import pressed_keys as key_queue 
-
+from cman_utils import pressed_keys as key_queue
 
 KEYS_TO_HOOK = ['w', 'a', 's', 'd', 'q']
 QUIT_MESSAGE = 'q'
@@ -21,48 +20,69 @@ ERROR_OPCODE = 0xFF
 # Global variables
 map_data = read_map("map.txt")
 last_message = b""
+points = {}  # Track all points on the map
+last_ghost_pos = None  # Track the Ghost's previous position
 
 
-def update_map(map_string, pacman_pos=None, ghost_pos=None):
+def initialize_points(map_string):
     """
-    Updates the map with new positions for Pacman ('C') and Ghost ('S').
+    Initializes the points dictionary by scanning the map for all point locations.
+    """
+    global points
+    rows = map_string.split('\n')
+    points = {(r_idx, c_idx): True for r_idx, row in enumerate(rows) for c_idx, char in enumerate(row) if char == 'P'}
+
+
+def update_map(map_string, pacman_pos=None, ghost_pos=None, prev_ghost_pos=None):
+    """
+    Updates the map with new positions for Pacman ('C') and Ghost ('S'),
+    ensuring Pacman collects points and Ghost restores points when moving away.
 
     Args:
         map_string (str): The current map as a string.
         pacman_pos (tuple): New position for Pacman as (row, col), optional.
         ghost_pos (tuple): New position for Ghost as (row, col), optional.
+        prev_ghost_pos (tuple): Previous position of the Ghost, used for restoring points.
 
     Returns:
         str: Updated map string.
     """
+    global points
+
     rows = map_string.split('\n')
 
-    # Helper to clear old positions
-    def clear_old_position(rows, char):
+    # Restore the point if the Ghost moved away from a point
+    if prev_ghost_pos and prev_ghost_pos in points:
+        r, c = prev_ghost_pos
+        rows[r] = rows[r][:c] + 'P' + rows[r][c + 1:]
+
+    # Clear Pacman's old position
+    if pacman_pos:
         for r_idx, row in enumerate(rows):
-            if char in row:
-                c_idx = row.index(char)
+            if 'C' in row:
+                c_idx = row.index('C')
                 rows[r_idx] = row[:c_idx] + 'F' + row[c_idx + 1:]
+                break
 
-    # Clear old positions
-    if pacman_pos:
-        clear_old_position(rows, 'C')
+    # Clear Ghost's old position
     if ghost_pos:
-        clear_old_position(rows, 'S')
+        for r_idx, row in enumerate(rows):
+            if 'S' in row:
+                c_idx = row.index('S')
+                rows[r_idx] = row[:c_idx] + 'F' + row[c_idx + 1:]
+                break
 
-    # Update new positions
-    def update_position(rows, char, pos):
-        if pos:
-            row, col = pos
-            if 0 <= row < len(rows) and 0 <= col < len(rows[row]):
-                rows[row] = rows[row][:col] + char + rows[row][col + 1:]
-            else:
-                raise ValueError(f"Position {pos} is out of bounds.")
-
+    # Update Pacman's position
     if pacman_pos:
-        update_position(rows, 'C', pacman_pos)
+        r, c = pacman_pos
+        if pacman_pos in points:
+            del points[pacman_pos]  # Pacman collects the point
+        rows[r] = rows[r][:c] + 'C' + rows[r][c + 1:]
+
+    # Update Ghost's position
     if ghost_pos:
-        update_position(rows, 'S', ghost_pos)
+        r, c = ghost_pos
+        rows[r] = rows[r][:c] + 'S' + rows[r][c + 1:]
 
     return '\n'.join(rows)
 
@@ -77,7 +97,7 @@ def print_pacman_map(attempts, collected):
         'F': ' ',  # Free space
         'P': '.',  # Dot
         'C': 'C',  # Pacman
-        'S': 'S'   # Ghost
+        'S': 'S'  # Ghost
     }
 
     # Convert each row using the legend
@@ -85,6 +105,7 @@ def print_pacman_map(attempts, collected):
         print(''.join(legend[char] for char in row))
 
     print(f'\nAttempts left: {attempts}\nCollected points: {collected}')
+
 
 def print_game_map_to_screen(attempts, collected):
     global map_data
@@ -115,7 +136,7 @@ def handle_game_state_update(message: bytes):
     """
     Handles game state updates and updates the map accordingly.
     """
-    global map_data
+    global map_data, last_ghost_pos
 
     # Extract game state details
     can_move = message[1] == 0
@@ -123,9 +144,16 @@ def handle_game_state_update(message: bytes):
     ghost_coords = (message[4], message[5])
     attempts = 3 - message[6]
     collected = decode_and_count_ones(message[7:])
+
     # Update the map
     try:
-        map_data = update_map(map_string=map_data, pacman_pos=pacman_coords, ghost_pos=ghost_coords)
+        map_data = update_map(
+            map_string=map_data,
+            pacman_pos=pacman_coords,
+            ghost_pos=ghost_coords,
+            prev_ghost_pos=last_ghost_pos
+        )
+        last_ghost_pos = ghost_coords  # Update the Ghost's last position
         print_game_map_to_screen(attempts, collected)
     except ValueError as e:
         print(f"Error updating map: {e}")
@@ -147,7 +175,7 @@ def handle_error(message: bytes):
 
 def send_join_message(sock: socket.socket, server_address: tuple, role: int):
     join_message = bytes([0x00, role])
-    sock.sendto(join_message,server_address)
+    sock.sendto(join_message, server_address)
 
 
 def send_quit_message(sock: socket.socket, server_address: tuple):
@@ -160,6 +188,7 @@ def send_move_message(sock: socket.socket, server_address: Tuple, direction: int
     move_message = bytes([0x01, direction])
     sock.sendto(move_message, server_address)
 
+
 def decode_and_count_ones(encoded_points):
     integer_value = int.from_bytes(encoded_points, byteorder='big')
     binary_string = bin(integer_value)[2:].zfill(40)  # Ensure it's 40 bits long
@@ -167,9 +196,8 @@ def decode_and_count_ones(encoded_points):
     return ones_count
 
 
-
 def main():
-    global map_data
+    global map_data, points, last_ghost_pos
 
     # Argument parsing
     parser = argparse.ArgumentParser(description="Cman Game Client")
@@ -181,12 +209,14 @@ def main():
     role = args.role
     server_address = (args.addr, args.port)
 
+    # Initialize points dictionary
+    initialize_points(map_data)
+
     # Create a UDP socket
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    
+
     key_thread = threading.Thread(target=key_listener, args=(KEYS_TO_HOOK,), daemon=True)
     key_thread.start()
-
 
     print(f"Client started with role: {role}. Connecting to {server_address}. Press 'q' to quit.")
 
@@ -194,14 +224,12 @@ def main():
         send_join_message(sock, server_address, ROLES[role])
 
         while True:
-                
             # Process server updates
             readable, _, _ = select.select([sock], [], [], 0.05)
             if sock in readable:
                 data, _ = sock.recvfrom(1024)
                 if receive_server_message(data):
                     break
-                
 
             # Check for user input
             while not key_queue.empty():
