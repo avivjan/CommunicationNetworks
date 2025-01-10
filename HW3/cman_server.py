@@ -42,10 +42,10 @@ def update_client_game_state_periodically():
     global last_update_time
     if time.time() - last_update_time > 1.0:
         publish_game_state_update_to_all()
-        
-        
 
-            
+
+
+
 def shutdown_server():
     print("Notifying clients about server shutdown...")
     for client_addr in clients.keys():
@@ -163,7 +163,8 @@ def publish_game_state_update_to_all():
     opcode = b'\x80'
     cman_cor = bytes(game.cur_coords[Player.CMAN])
     spirit_cor = bytes(game.cur_coords[Player.SPIRIT])
-    spirit_score = bytes(3 - game.get_game_progress()[0])
+    spirit_score = (3 - game.get_game_progress()[0]).to_bytes(1, byteorder='big')
+    print(f"Spirit score is: {spirit_score}")
     collected_points = calculate_collected_points()
     for client_addr in clients.keys():
         player = clients[client_addr]['player']
@@ -212,8 +213,9 @@ def handle_end_game():
 
 def send_win_message(winner):
     winner_in_bytes = b'\x01' if winner == Player.CMAN else b'\x02'
-    spirit_score = bytes(3 - game.get_game_progress()[0])
-    cman_score = bytes(game.get_game_progress()[1])
+    print(f"Info from get game progress: {game.get_game_progress()}")
+    spirit_score = (3 - game.get_game_progress()[0]).to_bytes(1, byteorder='big')
+    cman_score = (game.get_game_progress()[1]).to_bytes(1, byteorder='big')
     for client_addr in clients.keys():
         try:
             message = b'\x8F' + winner_in_bytes + spirit_score + cman_score
