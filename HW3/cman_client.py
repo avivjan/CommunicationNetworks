@@ -1,15 +1,10 @@
 from typing import Tuple
 import socket
-import time
 import argparse
 import select
-from queue import Queue
 import cman_utils
 from cman_game_map import read_map
 import threading
-from pynput import keyboard
-from pynput.keyboard import Key
-from pynput.keyboard import Listener
 from cman_utils import key_listener
 from cman_utils import pressed_keys as key_queue 
 
@@ -72,7 +67,7 @@ def update_map(map_string, pacman_pos=None, ghost_pos=None):
     return '\n'.join(rows)
 
 
-def print_pacman_map():
+def print_pacman_map(attempts, collected):
     """ Function that prints the current game map """
     rows = map_data.split('\n')
 
@@ -89,11 +84,12 @@ def print_pacman_map():
     for row in rows:
         print(''.join(legend[char] for char in row))
 
+    print(f'\nAttempts left: {attempts}\nCollected points: {collected}')
 
-def print_game_map_to_screen():
+def print_game_map_to_screen(attempts, collected):
     global map_data
     cman_utils.clear_print()
-    print_pacman_map()
+    print_pacman_map(attempts, collected)
 
 
 def receive_server_message(message: bytes):
@@ -107,8 +103,10 @@ def receive_server_message(message: bytes):
         handle_game_state_update(message)
     elif opcode == GAME_END_OPCODE:
         handle_game_end(message)
+        return True
     elif opcode == ERROR_OPCODE:
         handle_error(message)
+        return True
     else:
         print(f"Unknown opcode received: {opcode}")
 
@@ -123,11 +121,12 @@ def handle_game_state_update(message: bytes):
     can_move = message[1] == 0
     pacman_coords = (message[2], message[3])
     ghost_coords = (message[4], message[5])
-
+    attempts = 3 - message[6]
+    collected = decode_and_count_ones(message[7:])
     # Update the map
     try:
         map_data = update_map(map_string=map_data, pacman_pos=pacman_coords, ghost_pos=ghost_coords)
-        print_game_map_to_screen()
+        print_game_map_to_screen(attempts, collected)
     except ValueError as e:
         print(f"Error updating map: {e}")
 
@@ -161,10 +160,12 @@ def send_move_message(sock: socket.socket, server_address: Tuple, direction: int
     move_message = bytes([0x01, direction])
     sock.sendto(move_message, server_address)
 
+def decode_and_count_ones(encoded_points):
+    integer_value = int.from_bytes(encoded_points, byteorder='big')
+    binary_string = bin(integer_value)[2:].zfill(40)  # Ensure it's 40 bits long
+    ones_count = binary_string.count('1')
+    return ones_count
 
-
-
-        
 
 
 def main():
@@ -198,7 +199,8 @@ def main():
             readable, _, _ = select.select([sock], [], [], 0.05)
             if sock in readable:
                 data, _ = sock.recvfrom(1024)
-                receive_server_message(data)
+                if receive_server_message(data):
+                    break
                 
 
             # Check for user input
