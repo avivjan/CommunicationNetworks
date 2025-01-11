@@ -7,6 +7,7 @@ from cman_game_map import read_map
 import threading
 from cman_utils import key_listener
 from cman_utils import pressed_keys as key_queue
+import signal
 
 KEYS_TO_HOOK = ['w', 'a', 's', 'd', 'q']
 QUIT_MESSAGE = 'q'
@@ -22,6 +23,8 @@ map_data = read_map("map.txt")
 last_message = b""
 points = {}  # Track all points on the map
 last_ghost_pos = None  # Track the Ghost's previous position
+server_address = None
+sock = None
 
 
 def initialize_points(map_string):
@@ -118,7 +121,7 @@ def receive_server_message(message: bytes):
     Processes a message from the server.
     """
     opcode = message[0]
-    print(f"Message from server: {message}")
+
 
     if opcode == GAME_UPDATE_OPCODE:
         handle_game_state_update(message)
@@ -126,8 +129,7 @@ def receive_server_message(message: bytes):
         handle_game_end(message)
         return True
     elif opcode == ERROR_OPCODE:
-        handle_error(message)
-        return True
+        return handle_error(message)
     else:
         print(f"Unknown opcode received: {opcode}")
 
@@ -170,21 +172,67 @@ def handle_game_end(message: bytes):
 
 def handle_error(message: bytes):
     error_data = message[1:12]
-    print(f"Error received: {error_data}")
+    error_data = error_data.decode('utf-8')
+    if error_data == "0":
+        print("Player cannot move in this state of the game")
+        return False
+    if error_data == "1":
+        print("invalid join message")
+        return True        
+    if error_data == "2":
+        print("User already joined")
+        return True   
+    if error_data == "3":
+        print("Active player cant join - Game already started")
+        return True   
+    if error_data == "4":
+        print("Cman cant join - already occupied")
+        return True   
+    if error_data == "5":
+        print("Spirit cant join - already occupied")
+        return True   
+    if error_data == "6":
+        print("Cant join -  Invalid role")
+        return True   
+    if error_data == "7":
+        print("movement detected from an unknown user")
+        return True   
+    if error_data == "8":
+        print("Invalid movement message")
+        return False   
+    if error_data == "9":
+        print("Invalid direction in movement message")
+        return False   
+    if error_data == "10":
+        print("Watcher can't move")
+        return False   
+    if error_data == "11":
+        print("Quit message or timedout from unknown user")
+        return True
+    if error_data == "12":
+        print("Invalid quit message: should be only opcode")
+        return True   
+    else:
+        print("Unknown error")
+        return True
 
-
-def send_join_message(sock: socket.socket, server_address: tuple, role: int):
+def send_join_message(role: int):
+    global sock, server_address
     join_message = bytes([0x00, role])
     sock.sendto(join_message, server_address)
 
 
-def send_quit_message(sock: socket.socket, server_address: tuple):
+def send_quit_message(signum=None, frame=None):
+    global sock, server_address
     quit_message = bytes([0x0F])
     sock.sendto(quit_message, server_address)
     print("Quit message sent to server.")
+    exit(0)
+    
 
 
-def send_move_message(sock: socket.socket, server_address: Tuple, direction: int):
+def send_move_message(direction: int):
+    global sock, server_address
     move_message = bytes([0x01, direction])
     sock.sendto(move_message, server_address)
 
@@ -195,9 +243,13 @@ def decode_and_count_ones(encoded_points):
     ones_count = binary_string.count('1')
     return ones_count
 
-
+def set_signal_handlers():
+    signal.signal(signal.SIGINT, send_quit_message)  
+    signal.signal(signal.SIGTERM, send_quit_message)
+    signal.signal(signal.SIGHUP, send_quit_message) 
 def main():
-    global map_data, points, last_ghost_pos
+    set_signal_handlers()
+    global map_data, points, last_ghost_pos, server_address, sock
 
     # Argument parsing
     parser = argparse.ArgumentParser(description="Cman Game Client")
@@ -207,21 +259,23 @@ def main():
     args = parser.parse_args()
 
     role = args.role
-    server_address = (args.addr, args.port)
+    server_address = (args.addr, args.port) 
+    
 
     # Initialize points dictionary
     initialize_points(map_data)
 
     # Create a UDP socket
+
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     key_thread = threading.Thread(target=key_listener, args=(KEYS_TO_HOOK,), daemon=True)
     key_thread.start()
 
-    print(f"Client started with role: {role}. Connecting to {server_address}. Press 'q' to quit.")
+    print("connecting to server...")
 
     try:
-        send_join_message(sock, server_address, ROLES[role])
+        send_join_message(ROLES[role])
 
         while True:
             # Process server updates
@@ -235,15 +289,13 @@ def main():
             while not key_queue.empty():
                 key = key_queue.get()
                 if key == QUIT_MESSAGE:
-                    send_quit_message(sock, server_address)
-                    return
+                    send_quit_message()
 
                 if key in DIRECTION_MAP:
-                    send_move_message(sock, server_address, DIRECTION_MAP[key])
-                    print(f"Sent move: {key}")
+                    send_move_message(DIRECTION_MAP[key])
 
     except KeyboardInterrupt:
-        send_quit_message(sock, server_address)
+        send_quit_message()
         print("Exiting due to user interrupt.")
     except Exception as e:
         print(f"Exception: {e}")

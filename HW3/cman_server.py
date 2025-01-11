@@ -68,7 +68,7 @@ def parse_command_line_args():
 
 
 def handle_message(opcode, message, addr):
-    if addr in clients: # we don't want to update last_active for unknown clients
+    if addr in clients: # Don't update last_active for unknown clients
         clients[addr]['last_active'] = time.time()
     if opcode == '\x00':  # 0x00: Join
         handle_join(message, addr)
@@ -80,10 +80,10 @@ def handle_message(opcode, message, addr):
 def handle_join(message, addr):
     global is_cman_occupied, is_spirit_occupied
     if len(message) != 1:
-        publish_error(addr, "Invalid join message")
+        publish_error(addr, "1") # Invalid join message
         return
     if addr in clients.keys():
-        publish_error(addr, "User already joined")
+        publish_error(addr, "2") # User already joined
         return
     role = message[0]
     
@@ -93,12 +93,12 @@ def handle_join(message, addr):
         return
     
     if game.state != State.WAIT:
-        publish_error(addr, f"Game has already started, state = {game.state}")
+        publish_error(addr, "3") # Active player cant join - Game already started
         return
 
     if role == '\x01':
         if is_cman_occupied:
-            publish_error(addr, "Cman is already occupied")
+            publish_error(addr, "4"); # Cman cant join - already occupied
             return
         clients[addr] = {'player': Player.CMAN, 'last_active': time.time()}
         is_cman_occupied = True
@@ -107,7 +107,7 @@ def handle_join(message, addr):
         publish_game_state_update_to_all()
     elif role == '\x02':
         if is_spirit_occupied:
-            publish_error(addr, "Spirit is already occupied")
+            publish_error(addr, "5"); # Spirit cant join - already occupied
             return
         clients[addr] = {'player': Player.SPIRIT, 'last_active': time.time()}
         is_spirit_occupied = True
@@ -115,7 +115,7 @@ def handle_join(message, addr):
             game.next_round()
         publish_game_state_update_to_all()
     else:
-        publish_error(addr, "Invalid role in join message")
+        publish_error(addr,"6") # Cant join -  Invalid role
 
 
 def calculate_collected_points():
@@ -136,23 +136,25 @@ def flip(bit):
     return 1 if bit == 0 else 0
 def handle_player_movement(message, addr): 
     if addr not in clients:
-        publish_error(addr, "User not joined")
+        publish_error(addr,"7"); # movement detected from an unknown user
         return
     if len(message) != 1:
-        publish_error(addr, "Invalid movement message")
+        publish_error(addr, "8"); # Invalid movement message
         return
     direction = message[0]
     if direction not in ['\x00', '\x01', '\x02', '\x03']:
-        publish_error(addr, "Invalid direction in movement message")
+        publish_error(addr, "9") #Invalid direction in movement message
         return
     if clients[addr]['player'] == Player.NONE:
-        publish_error(addr, "Watcher can't move")
+        publish_error(addr, "10")  # Watcher can't move
         return
     
     direction = int.from_bytes(direction.encode(), byteorder='big')
-    print(f"Player {clients[addr]['player']} at {game.cur_coords[clients[addr]['player']]} wants to move {Direction(direction)}")
+    if not game.can_move(clients[addr]['player']):
+	    publish_error(addr, "0") # this player cannot move in this state of the game
+	    return False
     game.apply_move(clients[addr]['player'], direction)
-    print(f"Player {clients[addr]['player']} moved to {game.cur_coords[clients[addr]['player']]}")
+    
     if game.get_winner() != Player.NONE:
         handle_end_game()
     publish_game_state_update_to_all()
@@ -164,7 +166,6 @@ def publish_game_state_update_to_all():
     cman_cor = bytes(game.cur_coords[Player.CMAN])
     spirit_cor = bytes(game.cur_coords[Player.SPIRIT])
     spirit_score = (3 - game.get_game_progress()[0]).to_bytes(1, byteorder='big')
-    print(f"Spirit score is: {spirit_score}")
     collected_points = calculate_collected_points()
     for client_addr in clients.keys():
         player = clients[client_addr]['player']
@@ -184,11 +185,12 @@ def calc_freeze(player):
             return b'\x01'
 
 def handle_quit(message, addr):
+    print(f"Player from {addr} wants to quit")
     if addr not in clients:
-        publish_error(addr, "Quit message or timedout from unknown user")
+        publish_error(addr, "11") # Quit message or timedout from unknown user
         return
     if len(message) != 0:
-        publish_error(addr, "Invalid quit message: should be only opcode")
+        publish_error(addr, "12") # Invalid quit message: should be only opcode
         return
     if clients[addr]['player'] == Player.CMAN:
         global is_cman_occupied
@@ -200,7 +202,8 @@ def handle_quit(message, addr):
         is_spirit_occupied = False
         game.declare_winner(Player.CMAN)
         handle_end_game()
-    clients.pop(addr)
+    if addr in clients:
+        clients.pop(addr)
 
 def handle_end_game():
     global is_cman_occupied, is_spirit_occupied
@@ -216,7 +219,6 @@ def handle_end_game():
 
 def send_win_message(winner):
     winner_in_bytes = b'\x01' if winner == Player.CMAN else b'\x02'
-    print(f"Info from get game progress: {game.get_game_progress()}")
     spirit_score = (3 - game.get_game_progress()[0]).to_bytes(1, byteorder='big')
     cman_score = (game.get_game_progress()[1]).to_bytes(1, byteorder='big')
     for client_addr in clients.keys():
