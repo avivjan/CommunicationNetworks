@@ -171,7 +171,7 @@ def handle_game_end(message: bytes):
 
 
 def handle_error(message: bytes):
-    error_data = message[1:12]
+    error_data = message[1:12].rstrip(b'\x00')
     error_data = error_data.decode('utf-8')
     if error_data == "0":
         print("Player cannot move in this state of the game")

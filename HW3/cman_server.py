@@ -231,7 +231,7 @@ def send_win_message(winner):
 
 def publish_error(addr, message):
     try:
-        message = b'\xFF' + message.encode()
+        message = b'\xFF' + message.encode().ljust(11, b'\x00')
         server_socket.sendto(message, addr)
         print(f"Sending error message to {addr}: {message}")
     except BlockingIOError:
